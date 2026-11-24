@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Photo Fit Studio</title>
+<style>*{box-sizing:border-box}body{margin:0;background:#eef3ef;color:#192d26;font:16px/1.5 "Segoe UI",sans-serif}main{max-width:760px;margin:5vh auto;padding:clamp(20px,5vw,48px);background:white;border-top:6px solid #226647;border-radius:8px}h1{font-size:clamp(30px,5vw,48px);letter-spacing:-.045em;line-height:1.05;margin:0 0 18px}p{color:#354c41}label{display:block;font-weight:600;margin:14px 0}.pair{display:grid;grid-template-columns:1fr 1fr;gap:18px}input:not([type=checkbox]),select,textarea{display:block;width:100%;padding:10px;border:1px solid #789a89;border-radius:5px;font:inherit;background:white}button{padding:10px 16px;background:#175e40;color:white;border:0;border-radius:6px;font:inherit;cursor:pointer}button:disabled{opacity:.45}canvas{max-width:100%;height:auto}li{margin:.5em 0}.small{padding:3px 8px;font-size:.85em;margin-left:8px}article{border:2px solid #244b37;border-radius:6px;padding:18px;margin:14px 0;break-inside:avoid;overflow-wrap:anywhere}article h2{margin:2px 0}article p{white-space:pre-wrap}@media(max-width:480px){.pair{grid-template-columns:1fr;gap:0}}@media print{body,main{background:white;margin:0;padding:0;border:0;max-width:none}main>:not(#labels),article button{display:none}article{margin:0 0 12mm}}</style>
+<main><h1>Photo Fit Studio</h1><p>Resize a photo to fit a maximum width and height. Export a JPEG or PNG without uploading the original.</p><label>Photo<input type="file" id="file" accept="image/jpeg,image/png,image/webp"></label><div class="pair"><label>Maximum width (px)<input id="width" type="number" value="1200" min="1" max="8192"></label><label>Maximum height (px)<input id="height" type="number" value="1200" min="1" max="8192"></label></div><label>Output format<select id="format"><option value="image/jpeg">JPEG · white background</option><option value="image/png">PNG · preserve transparency</option></select></label><button id="save" disabled>Download resized photo</button><p id="status" role="status">Choose a photo to preview it.</p><canvas id="preview" hidden></canvas></main>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000)}
+
+let source, url, version=0;
+function render() {
+  const w=$('width').valueAsNumber, h=$('height').valueAsNumber;
+  $('save').disabled=true;
+  if(!source || ![w,h].every(n=>Number.isInteger(n)&&n>0&&n<=8192)){
+    $('preview').hidden=true;
+    if(source) $('status').textContent='Enter whole dimensions between 1 and 8192.';
+    return;
+  }
+  const scale=Math.min(1,w/source.naturalWidth,h/source.naturalHeight);
+  const canvas=$('preview');
+  canvas.width=Math.max(1,Math.round(source.naturalWidth*scale));
+  canvas.height=Math.max(1,Math.round(source.naturalHeight*scale));
+  const ctx=canvas.getContext('2d');
+  if($('format').value==='image/jpeg'){ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height)}
+  ctx.imageSmoothingQuality='high';
+  ctx.drawImage(source,0,0,canvas.width,canvas.height);
+  canvas.hidden=false; $('save').disabled=false;
+  $('status').textContent=source.naturalWidth+' × '+source.naturalHeight+' original → '+canvas.width+' × '+canvas.height+' export';
+}
+$('file').onchange=async()=>{
+  const current=++version; source=null;render();
+  if(url) URL.revokeObjectURL(url);
+  const file=$('file').files[0]; if(!file)return;
+  const img=new Image();url=URL.createObjectURL(file);img.src=url;
+  try{await img.decode();if(current!==version)return;source=img;render()}
+  catch{if(current===version)$('status').textContent='Could not read this image.'}
+};
+for(const id of ['width','height','format']) $(id).oninput=render;
+$('save').onclick=()=>{
+  const type=$('format').value;
+  const name=$('file').files[0].name.replace(/\.[^.]+$/,'')+'-resized.'+(type==='image/png'?'png':'jpg');
+  $('preview').toBlob(blob=>{if(blob) download(blob,name);else $('status').textContent='Export failed.'},type,0.9);
+};</script></html>
